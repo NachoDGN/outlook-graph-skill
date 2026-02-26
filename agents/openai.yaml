@@ -1,0 +1,4 @@
+interface:
+  display_name: "Outlook Graph"
+  short_description: "Connect and automate Outlook mailbox workflows"
+  default_prompt: "Use $outlook-graph to authenticate an Outlook account, fetch unread messages, draft replies, and download attachments safely."
