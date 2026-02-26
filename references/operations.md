@@ -1,11 +1,18 @@
 # Operations Guide
 
+From any working directory, resolve CLI path first:
+
+```bash
+export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+export OUTLOOK_CLI="$CODEX_HOME/skills/outlook-graph/scripts/outlook_cli.py"
+```
+
 ## Deterministic onboarding flow (agent-first)
 
 1. Generate setup plan:
 
 ```bash
-python3 scripts/outlook_cli.py auth onboard --profile default
+python3 "$OUTLOOK_CLI" auth onboard --profile default
 ```
 
 2. If `questions_for_user` is non-empty, ask those exact questions.
@@ -19,19 +26,19 @@ python3 scripts/outlook_cli.py auth onboard --profile default
 Browser flow:
 
 ```bash
-python3 scripts/outlook_cli.py auth login --method browser --profile default
+python3 "$OUTLOOK_CLI" auth login --method browser --profile default
 ```
 
 Device flow:
 
 ```bash
-python3 scripts/outlook_cli.py auth login --method device --profile default
+python3 "$OUTLOOK_CLI" auth login --method device --profile default
 ```
 
 Check session status:
 
 ```bash
-python3 scripts/outlook_cli.py auth status --profile default
+python3 "$OUTLOOK_CLI" auth status --profile default
 ```
 
 ## Unread inbox summary pipeline
@@ -39,7 +46,7 @@ python3 scripts/outlook_cli.py auth status --profile default
 1. Fetch unread messages:
 
 ```bash
-python3 scripts/outlook_cli.py mail list --folder inbox --unread-only --top 20
+python3 "$OUTLOOK_CLI" mail list --folder inbox --unread-only --top 20
 ```
 
 2. Summarize using message fields (`subject`, `from`, `bodyPreview`, `receivedDateTime`).
@@ -47,7 +54,7 @@ python3 scripts/outlook_cli.py mail list --folder inbox --unread-only --top 20
 3. Optionally mark processed messages as read:
 
 ```bash
-python3 scripts/outlook_cli.py mail mark --message-id MESSAGE_ID --read true
+python3 "$OUTLOOK_CLI" mail mark --message-id MESSAGE_ID --read true
 ```
 
 ## Draft and send workflow
@@ -55,7 +62,7 @@ python3 scripts/outlook_cli.py mail mark --message-id MESSAGE_ID --read true
 1. Draft:
 
 ```bash
-python3 scripts/outlook_cli.py mail draft \
+python3 "$OUTLOOK_CLI" mail draft \
   --to manager@example.com teammate@example.com \
   --subject "Weekly update" \
   --body-file ./weekly-update.txt
@@ -65,7 +72,7 @@ python3 scripts/outlook_cli.py mail draft \
 3. Send only after explicit confirmation:
 
 ```bash
-python3 scripts/outlook_cli.py mail send-draft --message-id MESSAGE_ID --confirm-send
+python3 "$OUTLOOK_CLI" mail send-draft --message-id MESSAGE_ID --confirm-send
 ```
 
 ## Attachment download workflow
@@ -73,13 +80,13 @@ python3 scripts/outlook_cli.py mail send-draft --message-id MESSAGE_ID --confirm
 List attachments:
 
 ```bash
-python3 scripts/outlook_cli.py attachments list --message-id MESSAGE_ID
+python3 "$OUTLOOK_CLI" attachments list --message-id MESSAGE_ID
 ```
 
 Download one:
 
 ```bash
-python3 scripts/outlook_cli.py attachments download \
+python3 "$OUTLOOK_CLI" attachments download \
   --message-id MESSAGE_ID \
   --attachment-id ATTACHMENT_ID
 ```
@@ -87,7 +94,7 @@ python3 scripts/outlook_cli.py attachments download \
 Download all:
 
 ```bash
-python3 scripts/outlook_cli.py attachments download-all --message-id MESSAGE_ID
+python3 "$OUTLOOK_CLI" attachments download-all --message-id MESSAGE_ID
 ```
 
 ## Multi-profile usage
@@ -95,9 +102,9 @@ python3 scripts/outlook_cli.py attachments download-all --message-id MESSAGE_ID
 Use different profiles per mailbox/account:
 
 ```bash
-python3 scripts/outlook_cli.py auth login --method browser --profile work
-python3 scripts/outlook_cli.py auth login --method browser --profile personal
-python3 scripts/outlook_cli.py mail list --unread-only --profile work
+python3 "$OUTLOOK_CLI" auth login --method browser --profile work
+python3 "$OUTLOOK_CLI" auth login --method browser --profile personal
+python3 "$OUTLOOK_CLI" mail list --unread-only --profile work
 ```
 
 ## Output handling

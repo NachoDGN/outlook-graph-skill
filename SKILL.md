@@ -35,13 +35,20 @@ Do not include `openid`, `profile`, or `offline_access` in `OUTLOOK_SCOPES` when
 4. Authenticate:
 
 ```bash
-python3 scripts/outlook_cli.py auth login --method browser --profile default
+python3 "$OUTLOOK_CLI" auth login --method browser --profile default
 ```
 
 For headless sessions, use device code:
 
 ```bash
-python3 scripts/outlook_cli.py auth login --method device --profile default
+python3 "$OUTLOOK_CLI" auth login --method device --profile default
+```
+
+If the agent is running outside the skill folder, resolve an absolute CLI path first:
+
+```bash
+export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+export OUTLOOK_CLI="$CODEX_HOME/skills/outlook-graph/scripts/outlook_cli.py"
 ```
 
 ## Mandatory agent onboarding protocol
@@ -51,7 +58,7 @@ When a user asks to read/write emails and auth is not yet established, always ex
 1. Run onboarding planner:
 
 ```bash
-python3 scripts/outlook_cli.py auth onboard --profile default
+python3 "$OUTLOOK_CLI" auth onboard --profile default
 ```
 
 2. Ask the user only for missing fields listed under `questions_for_user`.
@@ -59,7 +66,7 @@ python3 scripts/outlook_cli.py auth onboard --profile default
 4. Run the exact `login_command` returned by onboarding planner.
 5. Wait for user to complete browser/device sign-in and consent.
 6. Run `status_command` returned by onboarding planner.
-7. Continue with mailbox operations only if `authenticated` is `true`.
+7. Continue with mailbox operations only if `authenticated` is `true`, and prefer the returned `first_mail_command` so the path is always correct.
 
 This flow is designed so a non-technical user only performs one-time app setup and first login.
 
@@ -70,20 +77,20 @@ This flow is designed so a non-technical user only performs one-time app setup a
 List recent unread inbox messages in one call:
 
 ```bash
-python3 scripts/outlook_cli.py mail list --folder inbox --unread-only --top 10
+python3 "$OUTLOOK_CLI" mail list --folder inbox --unread-only --top 10
 ```
 
 Fetch one full message:
 
 ```bash
-python3 scripts/outlook_cli.py mail get --message-id MESSAGE_ID
+python3 "$OUTLOOK_CLI" mail get --message-id MESSAGE_ID
 ```
 
 Mark read or unread:
 
 ```bash
-python3 scripts/outlook_cli.py mail mark --message-id MESSAGE_ID --read true
-python3 scripts/outlook_cli.py mail mark --message-id MESSAGE_ID --read false
+python3 "$OUTLOOK_CLI" mail mark --message-id MESSAGE_ID --read true
+python3 "$OUTLOOK_CLI" mail mark --message-id MESSAGE_ID --read false
 ```
 
 ### Draft and send with guardrails
@@ -91,7 +98,7 @@ python3 scripts/outlook_cli.py mail mark --message-id MESSAGE_ID --read false
 Create a draft:
 
 ```bash
-python3 scripts/outlook_cli.py mail draft \
+python3 "$OUTLOOK_CLI" mail draft \
   --to recipient@example.com \
   --subject "Subject" \
   --body-file ./body.txt
@@ -100,7 +107,7 @@ python3 scripts/outlook_cli.py mail draft \
 Send an existing draft only after explicit confirmation:
 
 ```bash
-python3 scripts/outlook_cli.py mail send-draft --message-id MESSAGE_ID --confirm-send
+python3 "$OUTLOOK_CLI" mail send-draft --message-id MESSAGE_ID --confirm-send
 ```
 
 ### Attachment workflows
@@ -108,13 +115,13 @@ python3 scripts/outlook_cli.py mail send-draft --message-id MESSAGE_ID --confirm
 List message attachments:
 
 ```bash
-python3 scripts/outlook_cli.py attachments list --message-id MESSAGE_ID
+python3 "$OUTLOOK_CLI" attachments list --message-id MESSAGE_ID
 ```
 
 Download a specific attachment:
 
 ```bash
-python3 scripts/outlook_cli.py attachments download \
+python3 "$OUTLOOK_CLI" attachments download \
   --message-id MESSAGE_ID \
   --attachment-id ATTACHMENT_ID \
   --output-dir ./outlook_downloads
@@ -123,7 +130,7 @@ python3 scripts/outlook_cli.py attachments download \
 Download all attachments from a message:
 
 ```bash
-python3 scripts/outlook_cli.py attachments download-all --message-id MESSAGE_ID
+python3 "$OUTLOOK_CLI" attachments download-all --message-id MESSAGE_ID
 ```
 
 ## Output format

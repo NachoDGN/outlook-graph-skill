@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import sys
 import warnings
 from pathlib import Path
@@ -375,6 +376,7 @@ def build_onboarding_plan(args: argparse.Namespace) -> Dict[str, Any]:
             "Ensure app account type supports multi-tenant/personal access when using tenant_id=common.",
         )
 
+    cli_script = shlex.quote(str(Path(__file__).resolve()))
     env_prefix = (
         f'OUTLOOK_CLIENT_ID="{client_id or "<CLIENT_ID>"}" '
         f'OUTLOOK_TENANT_ID="{tenant_id}" '
@@ -383,11 +385,15 @@ def build_onboarding_plan(args: argparse.Namespace) -> Dict[str, Any]:
     )
     login_cmd = (
         f"{env_prefix}"
-        f'python3 scripts/outlook_cli.py auth login --method {args.method} --profile {profile}'
+        f"python3 {cli_script} auth login --method {args.method} --profile {profile}"
     )
     status_cmd = (
         f"{env_prefix}"
-        f'python3 scripts/outlook_cli.py auth status --profile {profile}'
+        f"python3 {cli_script} auth status --profile {profile}"
+    )
+    first_mail_cmd = (
+        f"{env_prefix}"
+        f"python3 {cli_script} mail list --folder inbox --unread-only --top 10 --profile {profile}"
     )
 
     status: Optional[Dict[str, Any]] = None
@@ -422,6 +428,7 @@ def build_onboarding_plan(args: argparse.Namespace) -> Dict[str, Any]:
         ],
         "login_command": login_cmd,
         "status_command": status_cmd,
+        "first_mail_command": first_mail_cmd,
         "ready_for_login": bool(client_id),
         "already_authenticated": authenticated,
         "status": status,
