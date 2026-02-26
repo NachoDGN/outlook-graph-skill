@@ -25,6 +25,8 @@ DEFAULT_SELECT_FIELDS = [
     "bodyPreview",
     "webLink",
 ]
+DEFAULT_AUTH_SCOPES = ["User.Read", "Mail.ReadWrite", "Mail.Send"]
+RESERVED_OIDC_SCOPES = {"openid", "profile", "offline_access"}
 
 
 warnings.filterwarnings(
@@ -52,6 +54,17 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 
     auth_logout = auth_sub.add_parser("logout", help="Clear cached auth for a profile")
     auth_logout.add_argument("--profile", default=None)
+
+    auth_onboard = auth_sub.add_parser(
+        "onboard",
+        help="Return deterministic onboarding steps for agent-driven setup",
+    )
+    auth_onboard.add_argument("--profile", default=None)
+    auth_onboard.add_argument("--client-id", default=None)
+    auth_onboard.add_argument("--tenant-id", default=None)
+    auth_onboard.add_argument("--redirect-uri", default=None)
+    auth_onboard.add_argument("--scopes", default=None)
+    auth_onboard.add_argument("--method", choices=["browser", "device"], default="browser")
 
     mail = root.add_parser("mail", help="Mail operations")
     mail_sub = mail.add_subparsers(dest="action", required=True)
@@ -174,8 +187,10 @@ def main() -> int:
 
 
 def run_auth(args: argparse.Namespace) -> Dict[str, Any]:
-    manager = build_auth_manager(args.profile)
+    if args.action == "onboard":
+        return build_onboarding_plan(args)
 
+    manager = build_auth_manager(args.profile)
     if args.action == "login":
         return manager.login(args.method)
     if args.action == "status":
@@ -326,9 +341,114 @@ def build_graph_client(profile: Optional[str]) -> GraphClient:
     return GraphClient(manager)
 
 
+def build_onboarding_plan(args: argparse.Namespace) -> Dict[str, Any]:
+    profile = (args.profile or os.environ.get("OUTLOOK_PROFILE") or "default").strip() or "default"
+    client_id = (args.client_id or os.environ.get("OUTLOOK_CLIENT_ID") or "").strip()
+    tenant_id = (args.tenant_id or os.environ.get("OUTLOOK_TENANT_ID") or "common").strip() or "common"
+    redirect_uri = (
+        args.redirect_uri
+        or os.environ.get("OUTLOOK_REDIRECT_URI")
+        or "http://localhost:8765"
+    ).strip()
+    scopes = normalize_scope_list(args.scopes or os.environ.get("OUTLOOK_SCOPES"))
+
+    questions_for_user: List[str] = []
+    if not client_id:
+        questions_for_user.append(
+            "Please share your Microsoft Entra Application (client) ID for the Outlook app registration."
+        )
+    if not args.tenant_id and not os.environ.get("OUTLOOK_TENANT_ID"):
+        questions_for_user.append(
+            "Should we use tenant mode 'common' (multi-tenant/personal) or a specific tenant ID?"
+        )
+
+    user_actions = [
+        "In Entra App Registration > Authentication, add platform 'Mobile and desktop applications'.",
+        "Set redirect URI to http://localhost:8765.",
+        "Enable 'Allow public client flows'.",
+        "In API permissions, grant delegated permissions: User.Read, Mail.ReadWrite, Mail.Send.",
+        "Run login command and complete browser sign-in/consent once.",
+    ]
+    if tenant_id == "common":
+        user_actions.insert(
+            0,
+            "Ensure app account type supports multi-tenant/personal access when using tenant_id=common.",
+        )
+
+    env_prefix = (
+        f'OUTLOOK_CLIENT_ID="{client_id or "<CLIENT_ID>"}" '
+        f'OUTLOOK_TENANT_ID="{tenant_id}" '
+        f'OUTLOOK_REDIRECT_URI="{redirect_uri}" '
+        f'OUTLOOK_SCOPES="{" ".join(scopes)}" '
+    )
+    login_cmd = (
+        f"{env_prefix}"
+        f'python3 scripts/outlook_cli.py auth login --method {args.method} --profile {profile}'
+    )
+    status_cmd = (
+        f"{env_prefix}"
+        f'python3 scripts/outlook_cli.py auth status --profile {profile}'
+    )
+
+    status: Optional[Dict[str, Any]] = None
+    authenticated = False
+    if client_id:
+        config = AuthConfig(
+            client_id=client_id,
+            tenant_id=tenant_id,
+            redirect_uri=redirect_uri,
+            scopes=scopes,
+            profile=profile,
+            token_store_mode=os.environ.get("OUTLOOK_TOKEN_STORE", "auto").strip().lower() or "auto",
+        )
+        status = AuthManager(config).status()
+        authenticated = bool(status.get("authenticated"))
+
+    return {
+        "profile": profile,
+        "config": {
+            "client_id_configured": bool(client_id),
+            "tenant_id": tenant_id,
+            "redirect_uri": redirect_uri,
+            "scopes": scopes,
+        },
+        "questions_for_user": questions_for_user,
+        "required_user_actions": user_actions,
+        "agent_next_steps": [
+            "Collect any missing fields from questions_for_user.",
+            "Share required_user_actions with the user in concise bullets.",
+            "Run login_command and wait for user to complete browser/device consent.",
+            "Run status_command and confirm authenticated=true before any mail operations.",
+        ],
+        "login_command": login_cmd,
+        "status_command": status_cmd,
+        "ready_for_login": bool(client_id),
+        "already_authenticated": authenticated,
+        "status": status,
+    }
+
+
 def parse_select_fields(raw: str) -> List[str]:
     fields = [field.strip() for field in raw.split(",") if field.strip()]
     return fields or list(DEFAULT_SELECT_FIELDS)
+
+
+def normalize_scope_list(raw: Optional[str]) -> List[str]:
+    source = raw or " ".join(DEFAULT_AUTH_SCOPES)
+    scopes: List[str] = []
+    seen = set()
+    for chunk in source.replace(",", " ").split():
+        scope = chunk.strip()
+        if not scope:
+            continue
+        if scope.lower() in RESERVED_OIDC_SCOPES:
+            continue
+        lowered = scope.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        scopes.append(scope)
+    return scopes or list(DEFAULT_AUTH_SCOPES)
 
 
 def parse_boolean(raw: str) -> bool:

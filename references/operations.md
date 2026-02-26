@@ -1,5 +1,19 @@
 # Operations Guide
 
+## Deterministic onboarding flow (agent-first)
+
+1. Generate setup plan:
+
+```bash
+python3 scripts/outlook_cli.py auth onboard --profile default
+```
+
+2. If `questions_for_user` is non-empty, ask those exact questions.
+3. Run `login_command` returned by onboarding output.
+4. Ask user to complete sign-in/consent in browser.
+5. Run `status_command` and confirm `authenticated=true`.
+6. Only then run mailbox commands.
+
 ## Auth flows
 
 Browser flow:

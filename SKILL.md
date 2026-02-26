@@ -44,6 +44,25 @@ For headless sessions, use device code:
 python3 scripts/outlook_cli.py auth login --method device --profile default
 ```
 
+## Mandatory agent onboarding protocol
+
+When a user asks to read/write emails and auth is not yet established, always execute this sequence before any mail command:
+
+1. Run onboarding planner:
+
+```bash
+python3 scripts/outlook_cli.py auth onboard --profile default
+```
+
+2. Ask the user only for missing fields listed under `questions_for_user`.
+3. Explain and confirm `required_user_actions` in plain language.
+4. Run the exact `login_command` returned by onboarding planner.
+5. Wait for user to complete browser/device sign-in and consent.
+6. Run `status_command` returned by onboarding planner.
+7. Continue with mailbox operations only if `authenticated` is `true`.
+
+This flow is designed so a non-technical user only performs one-time app setup and first login.
+
 ## Core commands
 
 ### Mail read and summarization workflows

@@ -19,6 +19,7 @@ Use this suite to validate trigger quality, behavior, and reliability.
 
 ## Functional tests
 
+- `auth onboard` returns deterministic `questions_for_user`, `required_user_actions`, `login_command`, and `status_command`.
 - Browser auth works and session persists for selected profile.
 - Device code auth works in terminal-only environment.
 - `mail list --unread-only --top 10` returns expected fields and ordering.
