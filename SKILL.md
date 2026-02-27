@@ -11,7 +11,13 @@ Use this skill to access Outlook mailboxes with delegated Microsoft Graph auth f
 
 ## Quick start
 
-1. Install script dependencies:
+1. Install script dependencies (venv-safe default):
+
+```bash
+python3 -m pip install -r scripts/requirements.txt
+```
+
+If you are intentionally using system Python (no active virtualenv), user-site install is also valid:
 
 ```bash
 python3 -m pip install --user -r scripts/requirements.txt
@@ -44,11 +50,16 @@ For headless sessions, use device code:
 python3 "$OUTLOOK_CLI" auth login --method device --profile default
 ```
 
-If the agent is running outside the skill folder, resolve an absolute CLI path first:
+If the agent is running outside the skill folder, resolve an absolute CLI path first. In Hermes runtimes prefer `HERMES_HOME`; otherwise fall back to `CODEX_HOME`:
 
 ```bash
+export HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
-export OUTLOOK_CLI="$CODEX_HOME/skills/outlook-graph/scripts/outlook_cli.py"
+if [ -f "$HERMES_HOME/skills/outlook-graph/scripts/outlook_cli.py" ]; then
+  export OUTLOOK_CLI="$HERMES_HOME/skills/outlook-graph/scripts/outlook_cli.py"
+else
+  export OUTLOOK_CLI="$CODEX_HOME/skills/outlook-graph/scripts/outlook_cli.py"
+fi
 ```
 
 ## Mandatory agent onboarding protocol

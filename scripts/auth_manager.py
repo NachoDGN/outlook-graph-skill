@@ -219,7 +219,7 @@ class AuthManager:
             import msal  # type: ignore
         except Exception as err:
             raise DependencyError(
-                "Missing dependency 'msal'. Install with: python3 -m pip install --user msal"
+                "Missing dependency 'msal'. Install with: python3 -m pip install msal (or use --user only outside virtualenv)"
             ) from err
 
         self._msal = msal

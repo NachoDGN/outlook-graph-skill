@@ -215,7 +215,7 @@ class GraphClient:
             import requests  # type: ignore
         except Exception as err:
             raise DependencyError(
-                "Missing dependency 'requests'. Install with: python3 -m pip install --user requests"
+                "Missing dependency 'requests'. Install with: python3 -m pip install requests (or use --user only outside virtualenv)"
             ) from err
 
         return requests

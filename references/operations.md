@@ -3,8 +3,13 @@
 From any working directory, resolve CLI path first:
 
 ```bash
+export HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
-export OUTLOOK_CLI="$CODEX_HOME/skills/outlook-graph/scripts/outlook_cli.py"
+if [ -f "$HERMES_HOME/skills/outlook-graph/scripts/outlook_cli.py" ]; then
+  export OUTLOOK_CLI="$HERMES_HOME/skills/outlook-graph/scripts/outlook_cli.py"
+else
+  export OUTLOOK_CLI="$CODEX_HOME/skills/outlook-graph/scripts/outlook_cli.py"
+fi
 ```
 
 ## Deterministic onboarding flow (agent-first)
