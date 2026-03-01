@@ -49,12 +49,32 @@ DEFAULT_MAX_PAGES = 20
 DEFAULT_MAX_MESSAGES = 1000
 FIRST_RUN_BACKFILL_DAYS = 15
 STATE_VERSION = 1
+INTERPRETER_PIN_FILE = Path.home() / ".codex" / "outlook-graph" / "python_interpreter.txt"
 
 
 warnings.filterwarnings(
     "ignore",
     message="urllib3 v2 only supports OpenSSL",
 )
+
+
+class InterpreterMismatchError(ValueError):
+    """Raised when the current Python executable is not the expected one."""
+
+    def __init__(self, current_python: str, expected_python: str, fix_steps: List[str]):
+        super().__init__("Current Python interpreter does not match the expected interpreter")
+        self.current_python = current_python
+        self.expected_python = expected_python
+        self.fix_steps = list(fix_steps)
+
+    def to_error_payload(self) -> Dict[str, Any]:
+        return {
+            "type": self.__class__.__name__,
+            "message": str(self),
+            "current_python": self.current_python,
+            "expected_python": self.expected_python,
+            "fix_steps": self.fix_steps,
+        }
 
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
@@ -73,6 +93,12 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 
     auth_status = auth_sub.add_parser("status", help="Show auth status")
     auth_status.add_argument("--profile", default=None)
+
+    auth_pin = auth_sub.add_parser(
+        "pin-interpreter",
+        help="Pin current Python interpreter for stable keychain trust prompts",
+    )
+    auth_pin.add_argument("--profile", default=None)
 
     auth_logout = auth_sub.add_parser("logout", help="Clear cached auth for a profile")
     auth_logout.add_argument("--profile", default=None)
@@ -231,6 +257,8 @@ def main() -> int:
     try:
         args = parse_args()
         output_format = args.format
+        profile = resolve_profile(getattr(args, "profile", None))
+        enforce_expected_interpreter(profile)
 
         if args.domain == "auth":
             result = run_auth(args)
@@ -245,6 +273,16 @@ def main() -> int:
 
         emit({"ok": True, "result": result}, output_format)
         return 0
+
+    except InterpreterMismatchError as err:
+        emit(
+            {
+                "ok": False,
+                "error": err.to_error_payload(),
+            },
+            output_format,
+        )
+        return 1
 
     except (AuthConfigError, AuthError, DependencyError, GraphAPIError, ValueError, OSError) as err:
         emit(
@@ -264,11 +302,25 @@ def run_auth(args: argparse.Namespace) -> Dict[str, Any]:
     if args.action == "onboard":
         return build_onboarding_plan(args)
 
+    if args.action == "pin-interpreter":
+        profile = resolve_profile(args.profile)
+        pinned = pin_current_interpreter()
+        return {
+            "profile": profile,
+            "pinned_python": str(pinned),
+            "python_executable": str(resolve_current_python()),
+            "interpreter_pinned": interpreter_pin_exists(),
+            "pin_file": str(INTERPRETER_PIN_FILE),
+        }
+
     manager = build_auth_manager(args.profile)
     if args.action == "login":
         return manager.login(args.method)
     if args.action == "status":
-        return manager.status()
+        status = manager.status()
+        status["python_executable"] = str(resolve_current_python())
+        status["interpreter_pinned"] = interpreter_pin_exists()
+        return status
     if args.action == "logout":
         return manager.logout()
 
@@ -1198,6 +1250,68 @@ def normalize_scope_list(raw: Optional[str]) -> List[str]:
         seen.add(lowered)
         scopes.append(scope)
     return scopes or list(DEFAULT_AUTH_SCOPES)
+
+
+def resolve_current_python() -> Path:
+    return Path(sys.executable).resolve()
+
+
+def read_pinned_interpreter() -> Optional[Path]:
+    if not INTERPRETER_PIN_FILE.exists():
+        return None
+    raw = INTERPRETER_PIN_FILE.read_text(encoding="utf-8").strip()
+    if not raw:
+        return None
+    return Path(raw).expanduser().resolve()
+
+
+def interpreter_pin_exists() -> bool:
+    return read_pinned_interpreter() is not None
+
+
+def resolve_expected_interpreter() -> Optional[Path]:
+    env_python = os.environ.get("OUTLOOK_PYTHON_BIN", "").strip()
+    if env_python:
+        return Path(env_python).expanduser().resolve()
+
+    pinned = read_pinned_interpreter()
+    if pinned is not None:
+        return pinned
+
+    virtual_env = os.environ.get("VIRTUAL_ENV", "").strip()
+    if virtual_env:
+        return (Path(virtual_env).expanduser() / "bin" / "python3").resolve()
+
+    return None
+
+
+def enforce_expected_interpreter(profile: str) -> None:
+    current = resolve_current_python()
+    expected = resolve_expected_interpreter()
+    if expected is None or not expected.exists():
+        return
+    if current == expected:
+        return
+
+    cli_script = Path(__file__).resolve()
+    raise InterpreterMismatchError(
+        current_python=str(current),
+        expected_python=str(expected),
+        fix_steps=[
+            "source venv/bin/activate",
+            f"python3 {cli_script} auth pin-interpreter --profile {profile}",
+        ],
+    )
+
+
+def pin_current_interpreter() -> Path:
+    current = resolve_current_python()
+    pin_dir = INTERPRETER_PIN_FILE.parent
+    pin_dir.mkdir(parents=True, exist_ok=True)
+    os.chmod(pin_dir, 0o700)
+    INTERPRETER_PIN_FILE.write_text(f"{current}\n", encoding="utf-8")
+    os.chmod(INTERPRETER_PIN_FILE, 0o600)
+    return current
 
 
 def parse_boolean(raw: str) -> bool:

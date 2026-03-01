@@ -11,7 +11,26 @@ Use this skill to access Outlook mailboxes with delegated Microsoft Graph auth f
 
 ## Quick start
 
-1. Install script dependencies (venv-safe default):
+1. Create and activate a virtual environment:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+2. If the agent is running outside the skill folder, resolve an absolute CLI path first. In Hermes runtimes prefer `HERMES_HOME`; otherwise fall back to `CODEX_HOME`:
+
+```bash
+export HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+if [ -f "$HERMES_HOME/skills/outlook-graph/scripts/outlook_cli.py" ]; then
+  export OUTLOOK_CLI="$HERMES_HOME/skills/outlook-graph/scripts/outlook_cli.py"
+else
+  export OUTLOOK_CLI="$CODEX_HOME/skills/outlook-graph/scripts/outlook_cli.py"
+fi
+```
+
+3. Install script dependencies (venv-safe default):
 
 ```bash
 python3 -m pip install -r scripts/requirements.txt
@@ -23,7 +42,15 @@ If you are intentionally using system Python (no active virtualenv), user-site i
 python3 -m pip install --user -r scripts/requirements.txt
 ```
 
-2. Configure required environment variables:
+4. Mandatory after activating the venv: pin the interpreter path used by this skill:
+
+```bash
+python3 "$OUTLOOK_CLI" auth pin-interpreter --profile default
+```
+
+This keeps macOS Keychain trust bound to one Python executable path and prevents repeated password prompts.
+
+5. Configure required environment variables:
 
 ```bash
 export OUTLOOK_CLIENT_ID="your-app-client-id"
@@ -36,9 +63,9 @@ export OUTLOOK_OUTPUT_DIR="./outlook_downloads"
 
 Do not include `openid`, `profile`, or `offline_access` in `OUTLOOK_SCOPES` when using MSAL Python. Those are reserved OIDC scopes.
 
-3. Create or verify the Microsoft app registration by following [app registration setup](references/app_registration.md).
+6. Create or verify the Microsoft app registration by following [app registration setup](references/app_registration.md).
 
-4. Authenticate:
+7. Authenticate:
 
 ```bash
 python3 "$OUTLOOK_CLI" auth login --method browser --profile default
@@ -48,18 +75,6 @@ For headless sessions, use device code:
 
 ```bash
 python3 "$OUTLOOK_CLI" auth login --method device --profile default
-```
-
-If the agent is running outside the skill folder, resolve an absolute CLI path first. In Hermes runtimes prefer `HERMES_HOME`; otherwise fall back to `CODEX_HOME`:
-
-```bash
-export HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
-export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
-if [ -f "$HERMES_HOME/skills/outlook-graph/scripts/outlook_cli.py" ]; then
-  export OUTLOOK_CLI="$HERMES_HOME/skills/outlook-graph/scripts/outlook_cli.py"
-else
-  export OUTLOOK_CLI="$CODEX_HOME/skills/outlook-graph/scripts/outlook_cli.py"
-fi
 ```
 
 ## Mandatory agent onboarding protocol
