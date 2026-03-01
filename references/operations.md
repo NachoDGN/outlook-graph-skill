@@ -62,6 +62,26 @@ python3 "$OUTLOOK_CLI" mail list --folder inbox --unread-only --top 20
 python3 "$OUTLOOK_CLI" mail mark --message-id MESSAGE_ID --read true
 ```
 
+## Folder discovery and drill-down
+
+Build a full Inbox subtree map:
+
+```bash
+python3 "$OUTLOOK_CLI" folders tree --root inbox --max-nodes 5000
+```
+
+List mail by folder path (exact segments, case-insensitive):
+
+```bash
+python3 "$OUTLOOK_CLI" mail list --folder-path "Inbox/Projects/2026" --top 20
+```
+
+List mail by explicit folder ID:
+
+```bash
+python3 "$OUTLOOK_CLI" mail list --folder-id FOLDER_ID --top 20
+```
+
 ## Draft and send workflow
 
 1. Draft:
@@ -100,6 +120,29 @@ Download all:
 
 ```bash
 python3 "$OUTLOOK_CLI" attachments download-all --message-id MESSAGE_ID
+```
+
+Download attachments from latest received emails:
+
+```bash
+python3 "$OUTLOOK_CLI" attachments download-recent --folder inbox --top 10
+```
+
+Download only attachments not previously downloaded (stateful):
+
+```bash
+python3 "$OUTLOOK_CLI" attachments download-new \
+  --folder inbox \
+  --overlap-hours 48 \
+  --max-pages 20 \
+  --max-messages 1000
+```
+
+Inspect and reset attachment state ledger:
+
+```bash
+python3 "$OUTLOOK_CLI" attachments state status --folder inbox
+python3 "$OUTLOOK_CLI" attachments state reset --folder inbox --confirm-reset
 ```
 
 ## Multi-profile usage

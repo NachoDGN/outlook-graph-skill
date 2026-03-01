@@ -85,6 +85,24 @@ This flow is designed so a non-technical user only performs one-time app setup a
 
 ### Mail read and summarization workflows
 
+Discover Inbox subtree (tree + flat index):
+
+```bash
+python3 "$OUTLOOK_CLI" folders tree --root inbox
+```
+
+List messages in a nested folder by resolved path:
+
+```bash
+python3 "$OUTLOOK_CLI" mail list --folder-path "Inbox/Finance/Invoices" --top 20
+```
+
+List messages by explicit folder ID:
+
+```bash
+python3 "$OUTLOOK_CLI" mail list --folder-id FOLDER_ID --top 20
+```
+
 List recent unread inbox messages in one call:
 
 ```bash
@@ -142,6 +160,25 @@ Download all attachments from a message:
 
 ```bash
 python3 "$OUTLOOK_CLI" attachments download-all --message-id MESSAGE_ID
+```
+
+Batch download attachments from latest messages (default top 10):
+
+```bash
+python3 "$OUTLOOK_CLI" attachments download-recent --folder inbox --top 10
+```
+
+Incremental download of only new attachments (stateful ledger):
+
+```bash
+python3 "$OUTLOOK_CLI" attachments download-new --folder inbox
+```
+
+Inspect or reset per-folder download state:
+
+```bash
+python3 "$OUTLOOK_CLI" attachments state status --folder inbox
+python3 "$OUTLOOK_CLI" attachments state reset --folder inbox --confirm-reset
 ```
 
 ## Output format

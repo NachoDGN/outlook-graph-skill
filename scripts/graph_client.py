@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import time
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urljoin
+from urllib.parse import quote, urljoin
 
 from auth_manager import AuthManager, DependencyError
 
@@ -38,29 +38,56 @@ class GraphClient:
         unread_only: bool,
         top: int,
         select_fields: Optional[List[str]] = None,
+        has_attachments_only: bool = False,
+        received_since: Optional[str] = None,
+        max_pages: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
-        limit = max(1, min(int(top), 250))
+        limit = max(1, min(int(top), 5000))
         page_size = min(limit, 50)
 
         params: Dict[str, Any] = {
             "$top": str(page_size),
             "$orderby": "receivedDateTime DESC",
         }
+        filters: List[str] = []
         if unread_only:
-            params["$filter"] = "isRead eq false"
+            filters.append("isRead eq false")
+        if has_attachments_only:
+            filters.append("hasAttachments eq true")
+        if received_since:
+            filters.append(f"receivedDateTime ge {received_since}")
+        if filters:
+            params["$filter"] = " and ".join(filters)
         if select_fields:
             params["$select"] = ",".join(select_fields)
 
-        path = f"/me/mailFolders/{folder}/messages"
-        return self._collect_paginated(path, params=params, limit=limit)
+        path = f"/me/mailFolders/{_quote_segment(folder)}/messages"
+        return self._collect_paginated(path, params=params, limit=limit, max_pages=max_pages)
+
+    def get_mail_folder(self, folder_token: str) -> Dict[str, Any]:
+        return self._request_json(
+            "GET",
+            f"/me/mailFolders/{_quote_segment(folder_token)}",
+            params={"$select": _mail_folder_select_fields()},
+        )
+
+    def list_child_folders(self, folder_token: str, include_hidden: bool = False) -> List[Dict[str, Any]]:
+        params: Dict[str, Any] = {
+            "$select": _mail_folder_select_fields(),
+            "$top": "50",
+        }
+        if include_hidden:
+            params["includeHiddenFolders"] = "true"
+        path = f"/me/mailFolders/{_quote_segment(folder_token)}/childFolders"
+        return self._collect_paginated(path, params=params, limit=5000, max_pages=200)
 
     def get_message(self, message_id: str) -> Dict[str, Any]:
-        return self._request_json("GET", f"/me/messages/{message_id}")
+        return self._request_json("GET", f"/me/messages/{_quote_segment(message_id)}")
 
     def mark_message(self, message_id: str, read: bool) -> Dict[str, Any]:
         return self._request_json(
             "PATCH",
-            f"/me/messages/{message_id}",
+            f"/me/messages/{_quote_segment(message_id)}",
             json_body={"isRead": bool(read)},
         )
 
@@ -87,16 +114,16 @@ class GraphClient:
         return self._request_json("POST", "/me/messages", json_body=payload)
 
     def send_draft(self, message_id: str) -> None:
-        self._request_json("POST", f"/me/messages/{message_id}/send")
+        self._request_json("POST", f"/me/messages/{_quote_segment(message_id)}/send")
 
     def list_attachments(self, message_id: str) -> List[Dict[str, Any]]:
-        data = self._request_json("GET", f"/me/messages/{message_id}/attachments")
+        data = self._request_json("GET", f"/me/messages/{_quote_segment(message_id)}/attachments")
         return data.get("value", [])
 
     def get_attachment(self, message_id: str, attachment_id: str) -> Dict[str, Any]:
         return self._request_json(
             "GET",
-            f"/me/messages/{message_id}/attachments/{attachment_id}",
+            f"/me/messages/{_quote_segment(message_id)}/attachments/{_quote_segment(attachment_id)}",
         )
 
     def download_attachment_bytes(
@@ -106,7 +133,7 @@ class GraphClient:
     ) -> Tuple[bytes, str]:
         return self._request_bytes(
             "GET",
-            f"/me/messages/{message_id}/attachments/{attachment_id}/$value",
+            f"/me/messages/{_quote_segment(message_id)}/attachments/{_quote_segment(attachment_id)}/$value",
         )
 
     def _collect_paginated(
@@ -114,13 +141,18 @@ class GraphClient:
         path: str,
         params: Optional[Dict[str, Any]],
         limit: int,
+        max_pages: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         items: List[Dict[str, Any]] = []
         next_url: Optional[str] = path
         next_params = dict(params or {})
+        page_count = 0
 
         while next_url and len(items) < limit:
+            if max_pages is not None and page_count >= max_pages:
+                break
             payload = self._request_json("GET", next_url, params=next_params, absolute_url=next_url.startswith("http"))
+            page_count += 1
             values = payload.get("value", [])
             for value in values:
                 if len(items) >= limit:
@@ -177,6 +209,7 @@ class GraphClient:
         headers = {
             "Authorization": f"Bearer {token}",
             "Accept": "application/json",
+            "Prefer": 'IdType="ImmutableId"',
         }
         if json_body is not None:
             headers["Content-Type"] = "application/json"
@@ -252,3 +285,11 @@ def _extract_graph_error(response: Any) -> str:
             return f"{prefix}: {message}"
 
     return prefix
+
+
+def _quote_segment(value: str) -> str:
+    return quote(str(value), safe="")
+
+
+def _mail_folder_select_fields() -> str:
+    return "id,displayName,parentFolderId,childFolderCount,totalItemCount,unreadItemCount,isHidden"
